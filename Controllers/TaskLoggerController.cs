@@ -9,54 +9,51 @@ namespace TaskLoggerDotNet.Controllers
 {
     public class TaskLoggerController : Controller
     {
-        // Hardcoded connection string (replace "test" with your DB name if needed)
-        private readonly string connectionString =
-            "Data Source=.;Initial Catalog=test;Integrated Security=True;TrustServerCertificate=True";
+        private string connectionString = System.Configuration.ConfigurationManager.ConnectionStrings["TaskDbConnection"].ConnectionString;
 
-        // ---------------- READ ALL ----------------
+        // GET: TaskLogger
         public ActionResult Index()
         {
-            var tasks = new List<TaskLoggerModel>();
+            List<TaskLoggerModel> tasks = new List<TaskLoggerModel>();
 
             using (SqlConnection con = new SqlConnection(connectionString))
             {
-                string query = "SELECT * FROM TaskLoggerDb ORDER BY DateDone DESC";
-                SqlCommand cmd = new SqlCommand(query, con);
-
-                con.Open();
-                SqlDataReader reader = cmd.ExecuteReader();
-
-                while (reader.Read())
+                using (SqlCommand cmd = new SqlCommand("sp_GetAllTasks", con))
                 {
-                    tasks.Add(new TaskLoggerModel
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    con.Open();
+                    SqlDataReader reader = cmd.ExecuteReader();
+                    while (reader.Read())
                     {
-                        Id = (Guid)reader["Id"],
-                        Description = reader["Description"].ToString(),
-                        DateDone = reader["DateDone"].ToString(),
-                        TotalHours = reader["TotalHours"].ToString()
-                    });
+                        tasks.Add(new TaskLoggerModel
+                        {
+                            Id = (Guid)reader["Id"],
+                            Description = reader["Description"].ToString(),
+                            DateDone = reader["DateDone"].ToString(),
+                            TotalHours = reader["TotalHours"].ToString()
+                        });
+                    }
                 }
             }
 
             return View(tasks);
         }
 
-        // ---------------- CREATE ----------------
+        // GET: TaskLogger/Create
         public ActionResult Create()
         {
             return View();
         }
 
+        // POST: TaskLogger/Create
         [HttpPost]
         public ActionResult Create(TaskLoggerModel model)
         {
-            if (ModelState.IsValid)
+            using (SqlConnection con = new SqlConnection(connectionString))
             {
-                using (SqlConnection con = new SqlConnection(connectionString))
+                using (SqlCommand cmd = new SqlCommand("sp_InsertTask", con))
                 {
-                    SqlCommand cmd = new SqlCommand("sp_InsertTask", con);
                     cmd.CommandType = CommandType.StoredProcedure;
-
                     cmd.Parameters.AddWithValue("@Id", Guid.NewGuid());
                     cmd.Parameters.AddWithValue("@Description", model.Description);
                     cmd.Parameters.AddWithValue("@DateDone", model.DateDone);
@@ -65,53 +62,51 @@ namespace TaskLoggerDotNet.Controllers
                     con.Open();
                     cmd.ExecuteNonQuery();
                 }
-
-                return RedirectToAction("Index");
             }
-
-            return View(model);
+            return RedirectToAction("Index");
         }
 
-        // ---------------- UPDATE ----------------
+        // GET: TaskLogger/Edit/{id}
         public ActionResult Edit(Guid id)
         {
             TaskLoggerModel task = null;
 
             using (SqlConnection con = new SqlConnection(connectionString))
             {
-                string query = "SELECT * FROM TaskLoggerDb WHERE Id=@Id";
-                SqlCommand cmd = new SqlCommand(query, con);
-                cmd.Parameters.AddWithValue("@Id", id);
-
-                con.Open();
-                SqlDataReader reader = cmd.ExecuteReader();
-
-                if (reader.Read())
+                using (SqlCommand cmd = new SqlCommand("sp_GetTaskById", con))
                 {
-                    task = new TaskLoggerModel
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.Parameters.AddWithValue("@Id", id);
+                    con.Open();
+                    SqlDataReader reader = cmd.ExecuteReader();
+                    if (reader.Read())
                     {
-                        Id = (Guid)reader["Id"],
-                        Description = reader["Description"].ToString(),
-                        DateDone = reader["DateDone"].ToString(),
-                        TotalHours = reader["TotalHours"].ToString()
-                    };
+                        task = new TaskLoggerModel
+                        {
+                            Id = (Guid)reader["Id"],
+                            Description = reader["Description"].ToString(),
+                            DateDone = reader["DateDone"].ToString(),
+                            TotalHours = reader["TotalHours"].ToString()
+                        };
+                    }
                 }
             }
 
-            if (task == null) return HttpNotFound();
+            if (task == null)
+                return HttpNotFound();
+
             return View(task);
         }
 
+        // POST: TaskLogger/Edit
         [HttpPost]
         public ActionResult Edit(TaskLoggerModel model)
         {
-            if (ModelState.IsValid)
+            using (SqlConnection con = new SqlConnection(connectionString))
             {
-                using (SqlConnection con = new SqlConnection(connectionString))
+                using (SqlCommand cmd = new SqlCommand("sp_UpdateTask", con))
                 {
-                    SqlCommand cmd = new SqlCommand("sp_UpdateTask", con);
                     cmd.CommandType = CommandType.StoredProcedure;
-
                     cmd.Parameters.AddWithValue("@Id", model.Id);
                     cmd.Parameters.AddWithValue("@Description", model.Description);
                     cmd.Parameters.AddWithValue("@DateDone", model.DateDone);
@@ -120,56 +115,55 @@ namespace TaskLoggerDotNet.Controllers
                     con.Open();
                     cmd.ExecuteNonQuery();
                 }
-
-                return RedirectToAction("Index");
             }
-
-            return View(model);
+            return RedirectToAction("Index");
         }
 
-        // ---------------- DELETE ----------------
+        // GET: TaskLogger/Delete/{id}
         public ActionResult Delete(Guid id)
         {
             using (SqlConnection con = new SqlConnection(connectionString))
             {
-                SqlCommand cmd = new SqlCommand("sp_DeleteTask", con);
-                cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.AddWithValue("@Id", id);
+                using (SqlCommand cmd = new SqlCommand("sp_DeleteTask", con))
+                {
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.Parameters.AddWithValue("@Id", id);
 
-                con.Open();
-                cmd.ExecuteNonQuery();
+                    con.Open();
+                    cmd.ExecuteNonQuery();
+                }
             }
-
             return RedirectToAction("Index");
         }
 
-        // ---------------- SEARCH ----------------
+        // GET: TaskLogger/Search
         public ActionResult Search(string date)
         {
-            var tasks = new List<TaskLoggerModel>();
+            List<TaskLoggerModel> filteredTasks = new List<TaskLoggerModel>();
 
             using (SqlConnection con = new SqlConnection(connectionString))
             {
-                SqlCommand cmd = new SqlCommand("sp_SearchTasksByDate", con);
-                cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.AddWithValue("@DateDone", date);
-
-                con.Open();
-                SqlDataReader reader = cmd.ExecuteReader();
-
-                while (reader.Read())
+                using (SqlCommand cmd = new SqlCommand("sp_SearchTasksByDate", con))
                 {
-                    tasks.Add(new TaskLoggerModel
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.Parameters.AddWithValue("@DateDone", date);
+
+                    con.Open();
+                    SqlDataReader reader = cmd.ExecuteReader();
+                    while (reader.Read())
                     {
-                        Id = (Guid)reader["Id"],
-                        Description = reader["Description"].ToString(),
-                        DateDone = reader["DateDone"].ToString(),
-                        TotalHours = reader["TotalHours"].ToString()
-                    });
+                        filteredTasks.Add(new TaskLoggerModel
+                        {
+                            Id = (Guid)reader["Id"],
+                            Description = reader["Description"].ToString(),
+                            DateDone = reader["DateDone"].ToString(),
+                            TotalHours = reader["TotalHours"].ToString()
+                        });
+                    }
                 }
             }
 
-            return View("Index", tasks);
+            return View("Index", filteredTasks);
         }
     }
 }
