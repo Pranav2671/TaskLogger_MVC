@@ -1,39 +1,193 @@
 ﻿@model IEnumerable<TaskLoggerDotNet.Models.TaskLoggerModel>
 
 @{
-    ViewBag.Title = "Task List";
+    Layout = null; // remove if you have a master layout
 }
 
-<h2>Task List</h2>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Task Logger</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body class="p-4">
 
-<p>
-    @Html.ActionLink("Create New Task", "Create")
-</p>
+    <h1 class="text-center mb-4">Task Logger</h1>
 
-<form action="@Url.Action("Search")" method="get">
-    <label for="date">Search by Date:</label>
-    <input type="text" name="date" placeholder="YYYY-MM-DD" />
-    <input type="submit" value="Search" />
-</form>
+    <div class="mb-3 text-end">
+        <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#addEditModal" id="openAddModal">Add Task</button>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#searchModal">Search Tasks</button>
+    </div>
 
-<table class="table">
-    <tr>
-        <th>Description</th>
-        <th>Date Done</th>
-        <th>Total Hours</th>
-        <th></th>
-    </tr>
+    <div id="taskList">
+        @Html.Partial("_TaskList", Model)
+    </div>
 
-    @foreach (var item in Model)
-    {
-        <tr>
-            <td>@item.Description</td>
-            <td>@item.DateDone</td>
-            <td>@item.TotalHours</td>
-            <td>
-                @Html.ActionLink("Edit", "Edit", new { id = item.Id }) |
-                @Html.ActionLink("Delete", "Delete", new { id = item.Id })
-            </td>
-        </tr>
-    }
-</table>
+    <!-- Add/Edit Modal -->
+    <div class="modal fade" id="addEditModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="addEditForm">
+                    @Html.AntiForgeryToken()
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalTitle">Add Task</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="Id" id="taskId" />
+                        <div class="mb-3">
+                            <label>Description</label>
+                            <input type="text" name="Description" class="form-control" required />
+                        </div>
+                        <div class="mb-3">
+                            <label>Date Done</label>
+                            <input type="date" name="DateDone" class="form-control" required />
+                        </div>
+                        <div class="mb-3">
+                            <label>Total Hours</label>
+                            <input type="number" name="TotalHours" class="form-control" required />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-success" id="submitBtn">Add Task</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Modal -->
+    <div class="modal fade" id="searchModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="searchForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Search Tasks by Date</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="date" name="date" class="form-control" />
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Search</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">Confirm Delete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete this task?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+        <div id="toast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body" id="toastBody">Success</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var deleteTaskId = '';
+
+        function showToast(message, bg = 'bg-success') {
+            var toastEl = $('#toast');
+            toastEl.removeClass('bg-success bg-danger').addClass(bg);
+            $('#toastBody').text(message);
+            var toast = new bootstrap.Toast(toastEl[0]);
+            toast.show();
+        }
+
+        // Add/Edit modal
+        $('#openAddModal').click(function () {
+            $('#addEditForm')[0].reset();
+            $('#taskId').val('');
+            $('#submitBtn').text('Add Task');
+            $('#modalTitle').text('Add Task');
+        });
+
+        // Edit button click
+        $(document).on('click', '.editBtn', function () {
+            var row = $(this);
+            $('#taskId').val(row.data('id'));
+            $('input[name="Description"]').val(row.data('description'));
+            $('input[name="DateDone"]').val(row.data('datedone'));
+            $('input[name="TotalHours"]').val(row.data('totalhours'));
+            $('#submitBtn').text('Update Task');
+            $('#modalTitle').text('Edit Task');
+            var addEditModal = new bootstrap.Modal(document.getElementById('addEditModal'));
+            addEditModal.show();
+        });
+
+        // Add/Edit form submit
+        $('#addEditForm').submit(function (e) {
+            e.preventDefault();
+            var id = $('#taskId').val();
+            var url = id ? '/TaskLogger/Edit' : '/TaskLogger/Create';
+            $.post(url, $(this).serialize())
+                .done(function (html) {
+                    $('#taskList').html(html);
+                    showToast(id ? 'Task updated successfully!' : 'Task created successfully!');
+                    var modalEl = document.getElementById('addEditModal');
+                    var modal = bootstrap.Modal.getInstance(modalEl);
+                    modal.hide();
+                });
+        });
+
+        // Search form submit
+        $('#searchForm').submit(function (e) {
+            e.preventDefault();
+            $.get('/TaskLogger/Search', $(this).serialize())
+                .done(function (html) {
+                    $('#taskList').html(html);
+                    var modalEl = document.getElementById('searchModal');
+                    var modal = bootstrap.Modal.getInstance(modalEl);
+                    modal.hide();
+                });
+        });
+
+        // Delete button click
+        $(document).on('click', '.deleteBtn', function () {
+            deleteTaskId = $(this).data('id');
+            var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            deleteModal.show();
+        });
+
+        // Confirm Delete
+        $('#confirmDeleteBtn').click(function () {
+            $.post('/TaskLogger/Delete', { id: deleteTaskId, __RequestVerificationToken: $('input[name="__RequestVerificationToken"]').first().val() })
+                .done(function (html) {
+                    $('#taskList').html(html);
+                    showToast('Task deleted successfully!', 'bg-danger');
+                    var modalEl = document.getElementById('deleteModal');
+                    var modal = bootstrap.Modal.getInstance(modalEl);
+                    modal.hide();
+                });
+        });
+    </script>
+
+</body>
+</html>

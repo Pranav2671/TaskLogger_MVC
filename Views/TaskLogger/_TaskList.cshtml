@@ -1,0 +1,38 @@
+@model IEnumerable<TaskLoggerDotNet.Models.TaskLoggerModel>
+
+<table class="table table-bordered table-striped">
+    <thead class="table-light">
+        <tr>
+            <th>Description</th>
+            <th>Date</th>
+            <th>Hours</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var t in Model)
+        {
+            <tr>
+                <td>@t.Description</td>
+                <td>@(DateTime.Parse(t.DateDone).ToString("yyyy-MM-dd"))</td>
+                <td>@t.TotalHours</td>
+                <td>
+                    <!-- Edit Button -->
+                    <button class="editBtn btn btn-sm btn-success me-2"
+                            data-id="@t.Id"
+                            data-description="@t.Description"
+                            data-datedone="@(DateTime.Parse(t.DateDone).ToString("yyyy-MM-dd"))"
+                            data-totalhours="@t.TotalHours">
+                        Edit
+                    </button>
+
+                    <!-- Delete Button -->
+                    <button class="deleteBtn btn btn-sm btn-danger"
+                            data-id="@t.Id">
+                        Delete
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
